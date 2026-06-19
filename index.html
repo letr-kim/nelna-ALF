@@ -354,11 +354,6 @@ function getWeekRange(now){
 //  통계
 // ─────────────────────────────────────────
 function renderStats(){
-  const [ws,we]=getWeekRange(new Date());
-  const wi=log.filter(e=>{ const d=parseDate(e.date); return d>=ws&&d<=we; });
-  const wc={workflow:0,rule:0,doc:0}; wi.forEach(e=>wc[e.type]++);
-  document.getElementById('statWeekCount').textContent=wi.length+'건';
-  document.getElementById('statWeekBreakdown').textContent=`WF ${wc.workflow} · 규칙 ${wc.rule} · 문서 ${wc.doc}`;
   const tc={workflow:0,rule:0,doc:0}; log.forEach(e=>tc[e.type]++);
   document.getElementById('statTotalCount').textContent=log.length+'건';
   document.getElementById('statTotalBreakdown').textContent=`WF ${tc.workflow} · 규칙 ${tc.rule} · 문서 ${tc.doc}`;
