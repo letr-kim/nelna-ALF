@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>낼나 · CX 운영 변경 로그</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#F2EFE8; --card:#FBFAF7; --ink:#1B1D1A; --ink-soft:#6B6F66; --line:#DCD6C6;
+    --teal:#2F6E68; --teal-soft:#DCEAE7; --brass:#B07F2E; --brass-soft:#F2E5C8;
+    --slate:#586270; --slate-soft:#E1E5EA; --sage:#5B7F5E; --brick:#A2473A;
+  }
+  *{box-sizing:border-box;}
+  body{ margin:0; background:var(--paper); color:var(--ink); font-family:'Noto Sans KR',sans-serif; -webkit-font-smoothing:antialiased; }
+  .mono{ font-family:'IBM Plex Mono',monospace; }
+  .wrap{ max-width:980px; margin:0 auto; padding:32px 20px 80px; }
+
+  header.top{ display:flex; justify-content:space-between; align-items:flex-end; gap:16px; margin-bottom:28px; flex-wrap:wrap; }
+  .brand{ font-size:12px; letter-spacing:.12em; color:var(--ink-soft); text-transform:uppercase; margin-bottom:6px; }
+  h1{ font-size:26px; font-weight:900; margin:0; letter-spacing:-0.01em; }
+  .sub{ color:var(--ink-soft); font-size:13.5px; margin-top:6px; }
+  .header-right{ display:flex; flex-direction:column; align-items:flex-end; gap:10px; }
+
+  /* 배너 */
+  .setup-banner{
+    background:var(--brass-soft); border:1px solid var(--brass); border-radius:12px;
+    padding:14px 18px; margin-bottom:22px; font-size:13px; display:flex; align-items:flex-start; gap:12px;
+  }
+  .setup-banner .icon{ font-size:18px; flex-shrink:0; margin-top:1px; }
+  .setup-banner strong{ display:block; font-size:14px; margin-bottom:4px; }
+  .setup-banner a{ color:var(--brass); font-weight:600; cursor:pointer; }
+  .setup-banner.hidden{ display:none; }
+
+  /* 설정 패널 */
+  .config-panel{ background:var(--card); border:1px solid var(--line); border-radius:14px; padding:20px; margin-bottom:22px; display:none; }
+  .config-panel.open{ display:block; }
+  .config-panel h2{ font-size:14px; font-weight:700; margin:0 0 4px; }
+  .config-panel .cfg-desc{ font-size:12.5px; color:var(--ink-soft); margin-bottom:16px; }
+  .config-panel .cfg-desc a{ color:var(--teal); }
+  .config-panel label{ display:block; font-size:12.5px; color:var(--ink-soft); margin-bottom:10px; }
+  .config-panel label span{ display:block; font-weight:600; color:var(--ink); margin-bottom:5px; }
+  .config-panel input{ width:100%; border:1px solid var(--line); background:var(--paper); border-radius:8px; padding:8px 10px; font-size:13px; font-family:'IBM Plex Mono',monospace; color:var(--ink); }
+  .config-panel input:focus-visible{ outline:2px solid var(--ink); outline-offset:1px; }
+  .cfg-actions{ display:flex; justify-content:flex-end; gap:8px; margin-top:4px; }
+  .cfg-status{ font-size:12px; margin-top:10px; padding:8px 12px; border-radius:8px; display:none; }
+  .cfg-status.ok{ background:#DCEAE7; color:var(--teal); display:block; }
+  .cfg-status.err{ background:#FAE2DF; color:var(--brick); display:block; }
+
+  /* 필터 */
+  .filters{ display:flex; gap:8px; flex-wrap:wrap; }
+  .chip{ border:1px solid var(--line); background:var(--card); color:var(--ink-soft); padding:7px 14px; border-radius:999px; font-size:13px; cursor:pointer; font-family:inherit; transition:background .15s,color .15s,border-color .15s; }
+  .chip[data-type="workflow"].active{ background:var(--teal); color:#fff; border-color:var(--teal); }
+  .chip[data-type="rule"].active{ background:var(--brass); color:#fff; border-color:var(--brass); }
+  .chip[data-type="doc"].active{ background:var(--slate); color:#fff; border-color:var(--slate); }
+  .chip[data-type="all"].active{ background:var(--ink); color:#fff; border-color:var(--ink); }
+  .chip:focus-visible{ outline:2px solid var(--ink); outline-offset:2px; }
+
+  /* 통계 */
+  .hero{ display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:22px; }
+  @media(max-width:680px){ .hero{ grid-template-columns:1fr; } }
+  .stat-card{ background:var(--card); border:1px solid var(--line); border-radius:14px; padding:18px 18px 14px; }
+  .stat-label{ font-size:12px; color:var(--ink-soft); margin-bottom:8px; }
+  .stat-row{ display:flex; align-items:baseline; }
+  .stat-num{ font-size:30px; font-weight:700; }
+
+  /* 패널 */
+  .panel{ background:var(--card); border:1px solid var(--line); border-radius:14px; padding:20px 20px 8px; margin-bottom:26px; }
+  .panel-head{ display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:14px; flex-wrap:wrap; }
+  .panel-title{ font-size:13px; font-weight:700; color:var(--ink-soft); text-transform:uppercase; letter-spacing:.06em; }
+
+  /* 폼 */
+  .add-form{ background:var(--paper); border:1px solid var(--line); border-radius:10px; padding:16px; margin-bottom:18px; display:none; }
+  .add-form.open{ display:block; }
+  .add-form .grid2{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  @media(max-width:560px){ .add-form .grid2{ grid-template-columns:1fr; } }
+  .add-form label{ display:block; font-size:12px; color:var(--ink-soft); margin-bottom:10px; }
+  .add-form label span{ display:block; margin-bottom:5px; font-weight:600; }
+  .add-form input, .add-form select, .add-form textarea{ width:100%; border:1px solid var(--line); background:var(--card); border-radius:8px; padding:8px 10px; font-size:13px; font-family:inherit; color:var(--ink); resize:vertical; }
+  .add-form textarea{ min-height:54px; }
+  .add-form input:focus-visible, .add-form select:focus-visible, .add-form textarea:focus-visible{ outline:2px solid var(--ink); outline-offset:1px; }
+  .form-actions{ display:flex; justify-content:flex-end; gap:8px; margin-top:4px; }
+
+  /* 타임라인 */
+  .timeline{ display:flex; flex-direction:column; }
+  .t-item{ display:flex; gap:16px; }
+  .t-item.hidden{ display:none; }
+  .rail{ width:32px; position:relative; display:flex; justify-content:center; flex:0 0 32px; }
+  .rail::before,.rail::after{ content:''; position:absolute; left:50%; width:0; border-left:2.5px dashed var(--line); transform:translateX(-50%); }
+  .rail::before{ top:0; height:calc(50% - 14px); }
+  .rail::after{ bottom:0; height:calc(50% - 14px); }
+  .t-item:first-child .rail::before{ display:none; }
+  .t-item:last-child .rail::after{ display:none; }
+  .ring{ width:26px; height:26px; border-radius:50%; background:var(--card); border:4px solid var(--ink-soft); margin-top:18px; z-index:1; flex:0 0 26px; }
+  .ring.workflow{ border-color:var(--teal); }
+  .ring.rule{ border-color:var(--brass); }
+  .ring.doc{ border-color:var(--slate); }
+  .t-card{ flex:1; padding:14px 0 22px; border-bottom:1px solid var(--line); }
+  .t-item:last-child .t-card{ border-bottom:none; }
+  .t-card-head{ cursor:pointer; }
+  .t-head{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .tag{ font-size:11px; font-weight:700; padding:3px 9px; border-radius:6px; color:#fff; }
+  .tag.workflow{ background:var(--teal); }
+  .tag.rule{ background:var(--brass); }
+  .tag.doc{ background:var(--slate); }
+  .t-date{ font-size:12px; color:var(--ink-soft); }
+  .t-title{ font-size:15px; font-weight:700; margin-top:6px; }
+  .t-detail{ display:none; margin-top:12px; font-size:13px; }
+  .t-detail.open{ display:block; }
+  .t-detail .row{ display:grid; grid-template-columns:90px 1fr; gap:8px; margin-bottom:7px; }
+  .t-detail .row b{ color:var(--ink-soft); font-weight:600; font-size:12.5px; }
+  .before{ color:#9B9688; }
+  .after{ color:var(--sage); font-weight:600; }
+  .view-actions{ display:flex; gap:14px; margin-top:6px; }
+  .edit-mode{ margin-top:4px; }
+  .edit-mode label{ display:block; font-size:12px; color:var(--ink-soft); margin-bottom:10px; }
+  .edit-mode label span{ display:block; margin-bottom:5px; font-weight:600; }
+  .edit-mode textarea{ width:100%; min-height:54px; border:1px solid var(--line); background:var(--paper); border-radius:8px; padding:8px 10px; font-size:13px; font-family:inherit; color:var(--ink); resize:vertical; }
+  .edit-mode textarea:focus-visible{ outline:2px solid var(--ink); outline-offset:1px; }
+  .edit-actions{ display:flex; justify-content:flex-end; gap:8px; margin-top:4px; }
+
+  /* 버튼 */
+  .btn-add{ background:var(--ink); color:#fff; border:none; border-radius:8px; padding:7px 14px; font-size:13px; font-family:inherit; cursor:pointer; }
+  .btn-ghost{ background:none; border:1px solid var(--line); color:var(--ink-soft); border-radius:8px; padding:7px 14px; font-size:13px; cursor:pointer; font-family:inherit; }
+  .btn-primary{ background:var(--teal); color:#fff; border:none; border-radius:8px; padding:7px 14px; font-size:13px; cursor:pointer; font-family:inherit; }
+  .btn-settings{ background:none; border:1px solid var(--line); color:var(--ink-soft); border-radius:8px; padding:6px 12px; font-size:12px; cursor:pointer; font-family:inherit; }
+  .link-btn{ background:none; border:none; color:var(--ink-soft); font-size:12px; cursor:pointer; font-family:inherit; padding:0; text-decoration:underline; }
+  .btn-add:focus-visible,.btn-ghost:focus-visible,.btn-primary:focus-visible,.link-btn:focus-visible{ outline:2px solid var(--ink); outline-offset:2px; }
+
+  /* 로딩/에러 */
+  .loading-overlay{ display:flex; align-items:center; justify-content:center; gap:10px; padding:32px 0; color:var(--ink-soft); font-size:13px; }
+  .spinner{ width:18px; height:18px; border:2px solid var(--line); border-top-color:var(--teal); border-radius:50%; animation:spin .7s linear infinite; }
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+  .error-state{ background:#FAE2DF; border:1px solid #E8B4AE; border-radius:10px; padding:14px 18px; font-size:13px; color:var(--brick); margin-bottom:16px; }
+  .empty-state{ color:var(--ink-soft); font-size:13px; padding:24px 0; text-align:center; }
+  .saving-indicator{ font-size:12px; color:var(--ink-soft); display:none; }
+  .saving-indicator.show{ display:inline; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <div>
+      <div class="brand">낼나 · CX OPS</div>
+      <h1>운영 변경 로그</h1>
+      <div class="sub">워크플로우 · 알프 규칙 · 도큐먼트 변경 기록</div>
+    </div>
+    <div class="header-right">
+      <div class="filters" id="filters">
+        <button class="chip active" data-type="all">전체</button>
+        <button class="chip" data-type="workflow">워크플로우</button>
+        <button class="chip" data-type="rule">규칙</button>
+        <button class="chip" data-type="doc">도큐먼트</button>
+      </div>
+      <button class="btn-settings" id="settingsBtn">⚙ GitHub 설정</button>
+    </div>
+  </header>
+
+  <!-- 미설정 배너 -->
+  <div class="setup-banner" id="setupBanner">
+    <div class="icon">🔗</div>
+    <div>
+      <strong>GitHub 연동이 필요해요</strong>
+      팀 공유를 위해 GitHub 레포지토리를 연결해 주세요.
+      <a id="bannerSettingsLink">설정 열기</a> → GitHub Token + 레포 이름 입력 → 완료!
+    </div>
+  </div>
+
+  <!-- 설정 패널 -->
+  <div class="config-panel" id="configPanel">
+    <h2>⚙ GitHub 연동 설정</h2>
+    <p class="cfg-desc">
+      변경 기록을 GitHub Issues에 저장합니다. Personal Access Token은 본인 브라우저에만 저장되며 서버로 전송되지 않습니다.<br>
+      발급 방법: <a href="https://github.com/settings/tokens/new?scopes=repo&description=naelna-cx-log" target="_blank">GitHub → Settings → Tokens (classic) → repo 체크</a>
+    </p>
+    <label><span>GitHub Personal Access Token</span><input type="password" id="cfgToken" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"></label>
+    <label><span>레포지토리 (owner/repo)</span><input type="text" id="cfgRepo" placeholder="naelna/cx-log"></label>
+    <div id="cfgStatus" class="cfg-status"></div>
+    <div class="cfg-actions">
+      <button class="btn-ghost" id="cfgCancelBtn">취소</button>
+      <button class="btn-ghost" id="cfgTestBtn">연결 테스트</button>
+      <button class="btn-primary" id="cfgSaveBtn">저장</button>
+    </div>
+  </div>
+
+  <!-- 통계 -->
+  <div id="overviewSection">
+    <div class="hero">
+      <div class="stat-card">
+        <div class="stat-label">이번 주 변경</div>
+        <div class="stat-row"><span class="stat-num mono" id="statWeekCount">0건</span></div>
+        <div class="stat-label" id="statWeekBreakdown" style="margin-top:10px;margin-bottom:0">-</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">전체 누적 변경</div>
+        <div class="stat-row"><span class="stat-num mono" id="statTotalCount">0건</span></div>
+        <div class="stat-label" id="statTotalBreakdown" style="margin-top:10px;margin-bottom:0">-</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 변경 이력 패널 -->
+  <div class="panel">
+    <div class="panel-head">
+      <div class="panel-title">변경 이력</div>
+      <div style="display:flex;align-items:center;gap:12px;">
+        <span class="saving-indicator" id="savingIndicator">저장 중…</span>
+        <button class="btn-add" id="toggleAddBtn">+ 새 변경 기록</button>
+      </div>
+    </div>
+
+    <form class="add-form" id="addForm">
+      <div class="grid2">
+        <label><span>구분</span>
+          <select id="f-type">
+            <option value="workflow">워크플로우</option>
+            <option value="rule">규칙</option>
+            <option value="doc">도큐먼트</option>
+          </select>
+        </label>
+        <label><span>날짜 (MM.DD)</span><input id="f-date" class="mono" placeholder="06.19" required></label>
+      </div>
+      <label><span>제목</span><input id="f-title" placeholder="예: 타이머 > 상담원 연결_타이머이상" required></label>
+      <label><span>변경 유형</span><select id="f-change"></select></label>
+      <label><span>변경 전</span><textarea id="f-before" placeholder="기존 내용 (신규면 비워두기)"></textarea></label>
+      <label><span>변경 후</span><textarea id="f-after" placeholder="바뀐 내용" required></textarea></label>
+      <label><span>사유</span><textarea id="f-reason" placeholder="왜 바꿨는지"></textarea></label>
+      <div class="form-actions">
+        <button type="button" class="btn-ghost" id="cancelAddBtn">취소</button>
+        <button type="submit" class="btn-primary">저장</button>
+      </div>
+    </form>
+
+    <div id="timelineWrap">
+      <div class="loading-overlay"><div class="spinner"></div>불러오는 중…</div>
+    </div>
+  </div>
+
+</div>
+<script>
+// ─────────────────────────────────────────
+//  설정 (브라우저 localStorage)
+// ─────────────────────────────────────────
+const CFG_KEY = 'naelna-gh-cfg';
+function loadCfg(){ try{ return JSON.parse(localStorage.getItem(CFG_KEY)||'{}'); }catch{ return {}; } }
+function saveCfg(o){ localStorage.setItem(CFG_KEY, JSON.stringify(o)); }
+
+// ─────────────────────────────────────────
+//  GitHub Issues API
+//  라벨 형식: cx-log, type:workflow, type:rule, type:doc
+// ─────────────────────────────────────────
+async function ghFetch(method, path, body, cfg){
+  const res = await fetch(`https://api.github.com/repos/${cfg.repo}${path}`, {
+    method,
+    headers: {
+      'Authorization': `Bearer ${cfg.token}`,
+      'Accept': 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28',
+      'Content-Type': 'application/json',
+    },
+    ...(body ? { body: JSON.stringify(body) } : {}),
+  });
+  if(!res.ok){ const t = await res.text(); throw new Error(`GitHub API ${res.status}: ${t}`); }
+  return res.json();
+}
+
+// Issue body 에 JSON 블록으로 데이터 저장
+function encodeBody(e){
+  return `<!-- cx-log-data
+${JSON.stringify({ date:e.date, change:e.change, before:e.before||'', after:e.after, reason:e.reason||'' })}
+-->`;
+}
+function decodeBody(body){
+  try{
+    const m = (body||'').match(/<!-- cx-log-data\n([\s\S]*?)\n-->/);
+    return m ? JSON.parse(m[1]) : {};
+  }catch{ return {}; }
+}
+function issueToEntry(issue){
+  const data = decodeBody(issue.body);
+  const typeLabel = (issue.labels||[]).find(l=>l.name.startsWith('type:'));
+  return {
+    id: issue.number,
+    title: issue.title,
+    type: typeLabel ? typeLabel.name.replace('type:','') : 'workflow',
+    date: data.date||'',
+    change: data.change||'',
+    before: data.before||'',
+    after: data.after||'',
+    reason: data.reason||'',
+  };
+}
+
+// 필수 라벨 초기화
+async function ensureLabels(cfg){
+  const labels = [
+    { name:'cx-log',          color:'1B1D1A', description:'CX 변경 로그' },
+    { name:'type:workflow',   color:'2F6E68', description:'워크플로우' },
+    { name:'type:rule',       color:'B07F2E', description:'규칙' },
+    { name:'type:doc',        color:'586270', description:'도큐먼트' },
+  ];
+  const existing = await ghFetch('GET', '/labels?per_page=100', null, cfg);
+  const existingNames = new Set(existing.map(l=>l.name));
+  for(const lb of labels){
+    if(!existingNames.has(lb.name))
+      await ghFetch('POST', '/labels', lb, cfg).catch(()=>{});
+  }
+}
+
+async function fetchEntries(cfg){
+  const issues = await ghFetch('GET', '/issues?labels=cx-log&state=open&per_page=100&sort=created&direction=desc', null, cfg);
+  return issues.map(issueToEntry);
+}
+async function createEntry(e, cfg){
+  const issue = await ghFetch('POST', '/issues', {
+    title: e.title,
+    body: encodeBody(e),
+    labels: ['cx-log', `type:${e.type}`],
+  }, cfg);
+  return { ...e, id: issue.number };
+}
+async function patchEntry(id, fields, cfg){
+  const current = await ghFetch('GET', `/issues/${id}`, null, cfg);
+  const data = decodeBody(current.body);
+  Object.assign(data, fields);
+  await ghFetch('PATCH', `/issues/${id}`, { body: encodeBody(data) }, cfg);
+}
+async function closeEntry(id, cfg){
+  await ghFetch('PATCH', `/issues/${id}`, { state:'closed' }, cfg);
+}
+
+// ─────────────────────────────────────────
+//  상태
+// ─────────────────────────────────────────
+let log = [];
+let cfg = loadCfg();
+
+const typeLabel = { workflow:'워크플로우', rule:'규칙', doc:'도큐먼트' };
+const changeOptions = {
+  workflow: ['메시지 수정','액션 추가·변경','노드 추가·삭제','분기 변경'],
+  rule:     ['내용 수정','규칙 추가','규칙 종료'],
+  doc:      ['내용 수정','아티클 추가','스페이스 신설'],
+};
+
+function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function dateKey(d){ const [m,v]=String(d||'0.0').split('.').map(Number); return (m||0)*100+(v||0); }
+function todayLabel(){ const d=new Date(); return `${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}`; }
+function parseDate(d){ const [m,v]=String(d||'1.1').split('.').map(Number); return new Date(new Date().getFullYear(),(m||1)-1,v||1); }
+function getWeekRange(now){
+  const day=now.getDay(); const diff=day===0?-6:1-day;
+  const mon=new Date(now); mon.setDate(now.getDate()+diff); mon.setHours(0,0,0,0);
+  const sun=new Date(mon); sun.setDate(mon.getDate()+6); sun.setHours(23,59,59,999);
+  return [mon,sun];
+}
+
+// ─────────────────────────────────────────
+//  통계
+// ─────────────────────────────────────────
+function renderStats(){
+  const [ws,we]=getWeekRange(new Date());
+  const wi=log.filter(e=>{ const d=parseDate(e.date); return d>=ws&&d<=we; });
+  const wc={workflow:0,rule:0,doc:0}; wi.forEach(e=>wc[e.type]++);
+  document.getElementById('statWeekCount').textContent=wi.length+'건';
+  document.getElementById('statWeekBreakdown').textContent=`WF ${wc.workflow} · 규칙 ${wc.rule} · 문서 ${wc.doc}`;
+  const tc={workflow:0,rule:0,doc:0}; log.forEach(e=>tc[e.type]++);
+  document.getElementById('statTotalCount').textContent=log.length+'건';
+  document.getElementById('statTotalBreakdown').textContent=`WF ${tc.workflow} · 규칙 ${tc.rule} · 문서 ${tc.doc}`;
+}
+
+// ─────────────────────────────────────────
+//  타임라인
+// ─────────────────────────────────────────
+const tlWrap = document.getElementById('timelineWrap');
+
+function renderTimeline(){
+  tlWrap.innerHTML='';
+  if(!cfg.token||!cfg.repo){
+    tlWrap.innerHTML='<div class="empty-state">GitHub 연동 후 기록이 표시됩니다.</div>';
+    renderStats(); return;
+  }
+  if(log.length===0){
+    tlWrap.innerHTML='<div class="empty-state">아직 기록된 변경이 없어요. "+ 새 변경 기록"으로 추가해보세요.</div>';
+    renderStats(); return;
+  }
+  const tl=document.createElement('div'); tl.className='timeline'; tlWrap.appendChild(tl);
+  const sorted=log.slice().sort((a,b)=>dateKey(b.date)-dateKey(a.date));
+  sorted.forEach(e=>{
+    const item=document.createElement('div');
+    item.className='t-item'; item.dataset.type=e.type;
+    item.innerHTML=`
+      <div class="rail"><div class="ring ${e.type}"></div></div>
+      <div class="t-card">
+        <div class="t-card-head">
+          <div class="t-head">
+            <span class="tag ${e.type}">${typeLabel[e.type]}</span>
+            <span class="t-date mono">${esc(e.date)} · ${esc(e.change)}</span>
+          </div>
+          <div class="t-title">${esc(e.title)}</div>
+        </div>
+        <div class="t-detail">
+          <div class="view-mode">
+            <div class="row"><b>변경 전</b><span class="before">${esc(e.before)||'-'}</span></div>
+            <div class="row"><b>변경 후</b><span class="after">${esc(e.after)}</span></div>
+            <div class="row"><b>사유</b><span>${esc(e.reason)||'-'}</span></div>
+            <div class="view-actions">
+              <button type="button" class="link-btn edit-btn">수정</button>
+              <button type="button" class="link-btn delete-btn">삭제</button>
+            </div>
+          </div>
+          <div class="edit-mode" style="display:none">
+            <label><span>변경 전</span><textarea class="e-before">${esc(e.before)}</textarea></label>
+            <label><span>변경 후</span><textarea class="e-after">${esc(e.after)}</textarea></label>
+            <label><span>사유</span><textarea class="e-reason">${esc(e.reason)}</textarea></label>
+            <div class="edit-actions">
+              <button type="button" class="btn-ghost cancel-edit-btn">취소</button>
+              <button type="button" class="btn-primary save-edit-btn">저장</button>
+            </div>
+          </div>
+        </div>
+      </div>`;
+
+    const detailEl=item.querySelector('.t-detail');
+    const viewMode=detailEl.querySelector('.view-mode');
+    const editMode=detailEl.querySelector('.edit-mode');
+
+    item.querySelector('.t-card-head').addEventListener('click',()=>detailEl.classList.toggle('open'));
+    detailEl.querySelector('.edit-btn').addEventListener('click',()=>{
+      viewMode.style.display='none'; editMode.style.display='block';
+    });
+    detailEl.querySelector('.cancel-edit-btn').addEventListener('click',()=>{
+      editMode.style.display='none'; viewMode.style.display='block';
+    });
+    detailEl.querySelector('.delete-btn').addEventListener('click',async()=>{
+      if(!confirm('이 변경 기록을 삭제할까요?')) return;
+      setSaving(true);
+      try{ await closeEntry(e.id, cfg); log=log.filter(x=>x.id!==e.id); renderTimeline(); }
+      catch(err){ alert('삭제 실패: '+err.message); }
+      finally{ setSaving(false); }
+    });
+    detailEl.querySelector('.save-edit-btn').addEventListener('click',async()=>{
+      const before=detailEl.querySelector('.e-before').value.trim();
+      const after=detailEl.querySelector('.e-after').value.trim();
+      const reason=detailEl.querySelector('.e-reason').value.trim();
+      setSaving(true);
+      try{
+        await patchEntry(e.id,{before,after,reason},cfg);
+        const target=log.find(x=>x.id===e.id);
+        if(target) Object.assign(target,{before,after,reason});
+        renderTimeline();
+      }catch(err){ alert('저장 실패: '+err.message); }
+      finally{ setSaving(false); }
+    });
+    tl.appendChild(item);
+  });
+  applyFilter(); renderStats();
+}
+
+function setSaving(v){
+  const el=document.getElementById('savingIndicator');
+  el.classList.toggle('show',v);
+}
+
+// ─────────────────────────────────────────
+//  필터
+// ─────────────────────────────────────────
+function applyFilter(){
+  const active=document.querySelector('.chip.active');
+  const type=active?active.dataset.type:'all';
+  document.querySelectorAll('.t-item').forEach(it=>{
+    it.classList.toggle('hidden',type!=='all'&&it.dataset.type!==type);
+  });
+  document.getElementById('overviewSection').style.display=type==='all'?'':'none';
+}
+document.getElementById('filters').addEventListener('click',e=>{
+  const btn=e.target.closest('.chip'); if(!btn) return;
+  document.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));
+  btn.classList.add('active'); applyFilter();
+});
+
+// ─────────────────────────────────────────
+//  설정 패널
+// ─────────────────────────────────────────
+const configPanel=document.getElementById('configPanel');
+
+function openSettings(){
+  configPanel.classList.add('open');
+  document.getElementById('cfgToken').value=cfg.token||'';
+  document.getElementById('cfgRepo').value=cfg.repo||'';
+  document.getElementById('cfgStatus').className='cfg-status';
+}
+document.getElementById('settingsBtn').addEventListener('click',openSettings);
+document.getElementById('bannerSettingsLink').addEventListener('click',openSettings);
+document.getElementById('cfgCancelBtn').addEventListener('click',()=>configPanel.classList.remove('open'));
+
+document.getElementById('cfgTestBtn').addEventListener('click',async()=>{
+  const statusEl=document.getElementById('cfgStatus');
+  statusEl.className='cfg-status'; statusEl.textContent='테스트 중…'; statusEl.style.display='block';
+  try{
+    const testCfg={ token:document.getElementById('cfgToken').value.trim(), repo:document.getElementById('cfgRepo').value.trim() };
+    await ghFetch('GET','',null,testCfg);
+    statusEl.className='cfg-status ok'; statusEl.textContent='✓ 연결 성공! 저장 버튼을 눌러주세요.';
+  }catch(err){
+    statusEl.className='cfg-status err'; statusEl.textContent='✗ 연결 실패: '+err.message;
+  }
+});
+
+document.getElementById('cfgSaveBtn').addEventListener('click',async()=>{
+  cfg.token=document.getElementById('cfgToken').value.trim();
+  cfg.repo=document.getElementById('cfgRepo').value.trim();
+  saveCfg(cfg);
+  configPanel.classList.remove('open');
+  document.getElementById('setupBanner').classList.add('hidden');
+  await init();
+});
+
+// ─────────────────────────────────────────
+//  추가 폼
+// ─────────────────────────────────────────
+const addForm=document.getElementById('addForm');
+const fType=document.getElementById('f-type');
+const fChange=document.getElementById('f-change');
+const fDate=document.getElementById('f-date');
+
+function populateChangeOptions(){
+  fChange.innerHTML=changeOptions[fType.value].map(o=>`<option value="${o}">${o}</option>`).join('');
+}
+fType.addEventListener('change',populateChangeOptions);
+populateChangeOptions();
+fDate.value=todayLabel();
+
+document.getElementById('toggleAddBtn').addEventListener('click',()=>{
+  addForm.classList.toggle('open');
+  if(addForm.classList.contains('open')) document.getElementById('f-title').focus();
+});
+document.getElementById('cancelAddBtn').addEventListener('click',()=>{
+  addForm.reset(); populateChangeOptions(); fDate.value=todayLabel(); addForm.classList.remove('open');
+});
+
+addForm.addEventListener('submit',async ev=>{
+  ev.preventDefault();
+  if(!cfg.token||!cfg.repo){ alert('GitHub 설정을 먼저 완료해주세요.'); return; }
+  const title=document.getElementById('f-title').value.trim();
+  const after=document.getElementById('f-after').value.trim();
+  if(!title||!after) return;
+  const entry={
+    id:null, date:fDate.value.trim()||todayLabel(),
+    type:fType.value, title, change:fChange.value,
+    before:document.getElementById('f-before').value.trim(),
+    after, reason:document.getElementById('f-reason').value.trim(),
+  };
+  setSaving(true);
+  try{
+    const saved=await createEntry(entry,cfg);
+    log.unshift(saved);
+    renderTimeline();
+    addForm.reset(); populateChangeOptions(); fDate.value=todayLabel(); addForm.classList.remove('open');
+  }catch(err){ alert('저장 실패: '+err.message); }
+  finally{ setSaving(false); }
+});
+
+// ─────────────────────────────────────────
+//  초기화
+// ─────────────────────────────────────────
+async function init(){
+  tlWrap.innerHTML='<div class="loading-overlay"><div class="spinner"></div>불러오는 중…</div>';
+  if(!cfg.token||!cfg.repo){
+    document.getElementById('setupBanner').classList.remove('hidden');
+    renderTimeline(); return;
+  }
+  document.getElementById('setupBanner').classList.add('hidden');
+  try{
+    await ensureLabels(cfg);
+    log=await fetchEntries(cfg);
+    renderTimeline();
+  }catch(err){
+    tlWrap.innerHTML=`<div class="error-state">⚠ ${esc(err.message)}</div><div class="empty-state">설정을 확인한 뒤 새로고침 해주세요.</div>`;
+  }
+}
+init();
+</script>
+</body>
+</html>
