@@ -342,6 +342,7 @@ var cfg=loadCfg();
 var typeLabel={workflow:'워크플로우',rule:'규칙',doc:'도큐먼트'};
 var changeOptions={workflow:['메시지 수정','액션 추가·변경','노드 추가·삭제','분기 변경'],rule:['내용 수정','규칙 추가','규칙 종료'],doc:['내용 수정','아티클 추가','스페이스 신설']};
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function escNl(s){return esc(s).replace(/\n/g,'<br>');}
 function dateKey(d){var p=String(d||'0.0').split('.');return (Number(p[0])||0)*100+(Number(p[1])||0);}
 function todayLabel(){var d=new Date();return String(d.getMonth()+1).padStart(2,'0')+'.'+String(d.getDate()).padStart(2,'0');}
 
@@ -370,9 +371,9 @@ function renderTimeline(){
         '</div>'+
         '<div class="t-detail">'+
           '<div class="view-mode">'+
-            '<div class="row"><b>변경 전</b><span class="before-txt">'+esc(e.before||'-')+'</span></div>'+
-            '<div class="row"><b>변경 후</b><span class="after-txt">'+esc(e.after)+'</span></div>'+
-            '<div class="row"><b>사유</b><span>'+esc(e.reason||'-')+'</span></div>'+
+            '<div class="row"><b>변경 전</b><span class="before-txt">'+escNl(e.before||'-')+'</span></div>'+
+            '<div class="row"><b>변경 후</b><span class="after-txt">'+escNl(e.after)+'</span></div>'+
+            '<div class="row"><b>사유</b><span>'+escNl(e.reason||'-')+'</span></div>'+
             '<div class="view-actions"><button class="link-btn edit-btn">수정</button><button class="link-btn delete-btn">삭제</button></div>'+
           '</div>'+
           '<div class="edit-mode" style="display:none">'+
