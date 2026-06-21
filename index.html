@@ -676,6 +676,7 @@ function initShipment(){
     wrap.innerHTML='<div class="ship-upload"><div style="color:var(--muted);font-size:13px;display:flex;align-items:center;gap:8px"><div class="spinner"></div>저장된 데이터 확인 중…</div></div>';
     try{
       var result=await loadFromGitHub();
+      await loadDefects();
       if(result&&result.data&&result.data.recs){
         savedMeta={fileName:result.data.fileName, updatedAt:result.data.updatedAt};
         records=result.data.recs;
@@ -696,6 +697,57 @@ function initShipment(){
 
   // ── GitHub 저장/불러오기 ──
   var DATA_FILE='shipment-data.json';
+  var DEFECT_FILE='defect-data.json';
+  // defect 구조: { 'LOT명': { rate: '0.45%', note: '내용' }, ... }
+  var defects={};
+
+  async function loadDefects(){
+    var c=loadCfg();
+    if(!c.token||!c.repo) return;
+    try{
+      var res=await fetch('https://api.github.com/repos/'+c.repo+'/contents/'+DEFECT_FILE,{
+        headers:{'Authorization':'Bearer '+c.token,'Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'}
+      });
+      if(!res.ok) return;
+      var meta=await res.json();
+      var text;
+      if(meta.content){
+        var b64=meta.content.replace(/[\r\n]/g,'');
+        var bin=atob(b64);
+        var bytes=new Uint8Array(bin.length);
+        for(var i=0;i<bin.length;i++) bytes[i]=bin.charCodeAt(i);
+        text=new TextDecoder().decode(bytes);
+      } else if(meta.download_url){
+        var raw=await fetch(meta.download_url);
+        text=await raw.text();
+      }
+      defects=JSON.parse(text)||{};
+    }catch(e){ defects={}; }
+  }
+
+  async function saveDefects(){
+    var c=loadCfg();
+    if(!c.token||!c.repo) throw new Error('GitHub 설정이 없어요.');
+    var jsonStr=JSON.stringify(defects);
+    var bytes=new TextEncoder().encode(jsonStr);
+    var binary=String.fromCharCode.apply(null,new Uint8Array(bytes));
+    var b64=btoa(binary);
+    var sha=null;
+    try{
+      var r=await fetch('https://api.github.com/repos/'+c.repo+'/contents/'+DEFECT_FILE,{
+        headers:{'Authorization':'Bearer '+c.token,'Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'}
+      });
+      if(r.ok){var j=await r.json();sha=j.sha;}
+    }catch(e){}
+    var body={message:'chore: update defect data',content:b64};
+    if(sha) body.sha=sha;
+    var res=await fetch('https://api.github.com/repos/'+c.repo+'/contents/'+DEFECT_FILE,{
+      method:'PUT',
+      headers:{'Authorization':'Bearer '+c.token,'Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28','Content-Type':'application/json'},
+      body:JSON.stringify(body)
+    });
+    if(!res.ok){var t=await res.text();throw new Error(t);}
+  }
 
   function getGhCfg(){return loadCfg();}
 
@@ -855,10 +907,90 @@ function initShipment(){
         selectedIdx=Number(item.dataset.idx);
         renderList();
         document.getElementById('shipDetail').innerHTML=renderDetail(products[selectedIdx]);
+        bindDefectEvents();
       });
+      // shipDetail 이벤트 위임 (첫 로드용)
+      bindDefectEvents();
     }
 
     renderList();
+  }
+
+  // ── 불량 편집 모달 ──
+  function bindDefectEvents(){
+    var detail=document.getElementById('shipDetail');
+    if(!detail) return;
+    detail.querySelectorAll('.defect-edit-btn').forEach(function(btn){
+      btn.onclick=function(){
+        var row=btn.closest('tr');
+        var lot=row.dataset.lot;
+        openDefectModal(lot, row);
+      };
+    });
+  }
+
+  function openDefectModal(lot, row){
+    var def=defects[lot]||{};
+    // 기존 모달 제거
+    var existing=document.getElementById('defectModal');
+    if(existing) existing.remove();
+
+    var modal=document.createElement('div');
+    modal.id='defectModal';
+    modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.35);z-index:1000;display:flex;align-items:center;justify-content:center;';
+    modal.innerHTML=
+      '<div style="background:#FBFAF7;border-radius:16px;padding:24px;width:440px;max-width:90vw;box-shadow:0 8px 32px rgba(0,0,0,0.18);">'+
+        '<div style="font-size:13px;color:var(--muted);margin-bottom:4px">LOT 불량 정보</div>'+
+        '<div style="font-size:17px;font-weight:700;color:var(--ink);margin-bottom:18px">'+esc(lot)+'</div>'+
+        '<label style="display:block;font-size:12px;color:var(--ink-soft);margin-bottom:10px">'+
+          '<span style="display:block;font-weight:600;margin-bottom:5px">불량률 (예: 0.45%)</span>'+
+          '<input id="defectRateInput" value="'+esc(def.rate||'')+'" style="width:100%;border:1px solid var(--line);background:var(--paper);border-radius:8px;padding:8px 10px;font-size:13px;font-family:inherit;color:var(--ink);">'+
+        '</label>'+
+        '<label style="display:block;font-size:12px;color:var(--ink-soft);margin-bottom:16px">'+
+          '<span style="display:block;font-weight:600;margin-bottom:5px">불량 내용</span>'+
+          '<textarea id="defectNoteInput" rows="4" style="width:100%;border:1px solid var(--line);background:var(--paper);border-radius:8px;padding:8px 10px;font-size:13px;font-family:inherit;color:var(--ink);resize:vertical;">'+esc(def.note||'')+'</textarea>'+
+        '</label>'+
+        '<div id="defectSaveStatus" style="font-size:12px;color:var(--muted);margin-bottom:10px;min-height:16px"></div>'+
+        '<div style="display:flex;justify-content:flex-end;gap:8px">'+
+          (def.rate||def.note?'<button id="defectDeleteBtn" class="btn-ghost" style="margin-right:auto;color:var(--brick);border-color:var(--brick)">삭제</button>':'')+
+          '<button id="defectCancelBtn" class="btn-ghost">취소</button>'+
+          '<button id="defectSaveBtn" class="btn-primary">저장</button>'+
+        '</div>'+
+      '</div>';
+
+    document.body.appendChild(modal);
+
+    modal.addEventListener('click',function(e){ if(e.target===modal) modal.remove(); });
+    document.getElementById('defectCancelBtn').addEventListener('click',function(){ modal.remove(); });
+
+    var deleteBtn=document.getElementById('defectDeleteBtn');
+    if(deleteBtn){
+      deleteBtn.addEventListener('click',async function(){
+        var status=document.getElementById('defectSaveStatus');
+        status.textContent='삭제 중…';
+        try{
+          delete defects[lot];
+          await saveDefects();
+          modal.remove();
+          document.getElementById('shipDetail').innerHTML=renderDetail(products[selectedIdx]);
+          bindDefectEvents();
+        }catch(e){ status.style.color='var(--brick)'; status.textContent='삭제 실패: '+e.message; }
+      });
+    }
+
+    document.getElementById('defectSaveBtn').addEventListener('click',async function(){
+      var rate=document.getElementById('defectRateInput').value.trim();
+      var note=document.getElementById('defectNoteInput').value.trim();
+      var status=document.getElementById('defectSaveStatus');
+      status.style.color='var(--muted)'; status.textContent='저장 중…';
+      try{
+        defects[lot]={rate:rate, note:note};
+        await saveDefects();
+        modal.remove();
+        document.getElementById('shipDetail').innerHTML=renderDetail(products[selectedIdx]);
+        bindDefectEvents();
+      }catch(e){ status.style.color='var(--brick)'; status.textContent='저장 실패: '+e.message; }
+    });
   }
 
   function renderList(){
@@ -891,12 +1023,16 @@ function initShipment(){
       '<div class="ship-section-title">LOT별 출고수량</div>'+
       '<div class="ship-chart-box">'+barChartSVG(lotData,W,18)+'</div>'+
       '<table class="ship-table">'+
-        '<thead><tr><th>LOT</th><th>출고수량</th><th>마지막 출고일</th></tr></thead>'+
+        '<thead><tr><th>LOT</th><th>출고수량</th><th>마지막 출고일</th><th>불량률</th><th>불량 내용</th><th></th></tr></thead>'+
         '<tbody>'+p.lots.map(function(l){
-          return '<tr>'+
+          var def=defects[l.lot]||{};
+          return '<tr data-lot="'+esc(l.lot)+'">'+
             '<td>'+esc(l.lot)+'</td>'+
             '<td>'+fmtNum(l.qty)+'개</td>'+
             '<td style="color:'+(l.lastDate?'var(--ink)':'var(--muted)')+'">'+esc(l.lastDate||'—')+'</td>'+
+            '<td class="defect-rate" style="color:'+(def.rate?'var(--brick)':'var(--muted)')+'">'+esc(def.rate||'—')+'</td>'+
+            '<td class="defect-note" style="color:var(--ink-soft);max-width:200px;white-space:pre-wrap;font-size:12px">'+esc(def.note||'—')+'</td>'+
+            '<td><button class="link-btn defect-edit-btn" style="white-space:nowrap">편집</button></td>'+
           '</tr>';
         }).join('')+'</tbody>'+
       '</table>'+
