@@ -545,12 +545,16 @@ function initShipment(){
       if(rec.qty>0){if(!p.first||rec.date<p.first)p.first=rec.date;if(!p.last||rec.date>p.last)p.last=rec.date;}
       var lk=rec.lot||'LOT 미기재';
       p.lotMap.set(lk,(p.lotMap.get(lk)||0)+rec.qty);
-      if(rec.qty>0&&rec.lot){var pd=p.lotLastDate.get(lk);if(!pd||rec.date>pd)p.lotLastDate.set(lk,rec.date);}
+      if(rec.qty>0&&rec.lot){
+        var pd=p.lotLastDate.get(lk);if(!pd||rec.date>pd)p.lotLastDate.set(lk,rec.date);
+        if(!p.lotFirstDate) p.lotFirstDate=new Map();
+        var pf=p.lotFirstDate.get(lk);if(!pf||rec.date<pf)p.lotFirstDate.set(lk,rec.date);
+      }
       p.dailyMap.set(rec.date,(p.dailyMap.get(rec.date)||0)+rec.qty);
     });
     var arr=[];
     map.forEach(function(p){
-      var lots=Array.from(p.lotMap.entries()).map(function(e){return{lot:e[0],qty:e[1],lastDate:p.lotLastDate.get(e[0])||null};}).sort(function(a,b){
+      var lots=Array.from(p.lotMap.entries()).map(function(e){return{lot:e[0],qty:e[1],lastDate:p.lotLastDate.get(e[0])||null,firstDate:(p.lotFirstDate?p.lotFirstDate.get(e[0]):null)||null};}).sort(function(a,b){
         // LOT 미기재는 항상 맨 뒤
         if(a.lot==='LOT 미기재') return 1;
         if(b.lot==='LOT 미기재') return -1;
@@ -1013,30 +1017,34 @@ function initShipment(){
     if(!p)return '<div class="ship-detail-empty">왼쪽에서 제품을 선택해주세요.</div>';
     var W=480;
     var lotData=p.lots.slice(0,10);
+    var lotRows=p.lots.map(function(l){
+      var defKey=p.name+'::'+l.lot;
+      var def=defects[defKey]||{};
+      var firstTd='<td style="color:'+(l.firstDate?'var(--ink)':'var(--muted)')+'">'+esc(l.firstDate||'—')+'</td>';
+      var lastTd='<td style="color:'+(l.lastDate?'var(--ink)':'var(--muted)')+'">'+esc(l.lastDate||'—')+'</td>';
+      var rateTd='<td class="defect-rate" style="color:'+(def.rate?'var(--brick)':'var(--muted)')+'">'+esc(def.rate||'—')+'</td>';
+      var noteTd='<td class="defect-note" style="color:var(--ink-soft);max-width:180px;white-space:pre-wrap;font-size:12px">'+esc(def.note||'—')+'</td>';
+      var editTd='<td><button class="link-btn defect-edit-btn" style="white-space:nowrap">편집</button></td>';
+      return '<tr data-lot="'+esc(l.lot)+'" data-defkey="'+esc(defKey)+'">'+
+        '<td>'+esc(l.lot)+'</td>'+
+        '<td>'+fmtNum(l.qty)+'개</td>'+
+        firstTd+lastTd+rateTd+noteTd+editTd+
+      '</tr>';
+    }).join('');
+
     return '<div class="ship-detail-sku">'+(p.skuCode?'SKU '+esc(p.skuCode):'SKU코드 미기재')+'</div>'+
       '<div class="ship-detail-title">'+esc(p.name)+'</div>'+
       '<div class="ship-cards">'+
         statCardHTML('총 출고수량',fmtNum(p.totalQty)+'개',p.totalGiftQty>0?'사은품 '+fmtNum(p.totalGiftQty)+'개 별도':'')+
         statCardHTML('출고시작일',p.first||'—','')+
         statCardHTML('최근 출고일',p.last||'—','')+
-        statCardHTML('LOT 종류',p.lotCount+'종',p.lots.some(function(l){return l.lot==='LOT 미기재';})?' LOT 미기재 건 포함':'')+
+        statCardHTML('LOT 종류',p.lotCount+'종',p.lots.some(function(l){return l.lot==='LOT 미기재';})?'LOT 미기재 건 포함':'')+
       '</div>'+
       '<div class="ship-section-title">LOT별 출고수량</div>'+
       '<div class="ship-chart-box">'+barChartSVG(lotData,W,18)+'</div>'+
       '<table class="ship-table">'+
-        '<thead><tr><th>LOT</th><th>출고수량</th><th>마지막 출고일</th><th>불량률</th><th>불량 내용</th><th></th></tr></thead>'+
-        '<tbody>'+p.lots.map(function(l){
-          var defKey=p.name+'::'+l.lot;
-          var def=defects[defKey]||{};
-          return '<tr data-lot="'+esc(l.lot)+'" data-defkey="'+esc(defKey)+'">'+
-            '<td>'+esc(l.lot)+'</td>'+
-            '<td>'+fmtNum(l.qty)+'개</td>'+
-            '<td style="color:'+(l.lastDate?'var(--ink)':'var(--muted)')+'">'+esc(l.lastDate||'—')+'</td>'+
-            '<td class="defect-rate" style="color:'+(def.rate?'var(--brick)':'var(--muted)')+'">'+esc(def.rate||'—')+'</td>'+
-            '<td class="defect-note" style="color:var(--ink-soft);max-width:200px;white-space:pre-wrap;font-size:12px">'+esc(def.note||'—')+'</td>'+
-            '<td><button class="link-btn defect-edit-btn" style="white-space:nowrap">편집</button></td>'+
-          '</tr>';
-        }).join('')+'</tbody>'+
+        '<thead><tr><th>LOT</th><th>출고수량</th><th>첫 출고일</th><th>마지막 출고일</th><th>불량률</th><th>불량 내용</th><th></th></tr></thead>'+
+        '<tbody>'+lotRows+'</tbody>'+
       '</table>'+
       '<div class="ship-section-title" style="margin-top:22px">최근 7일 일자별 출고</div>'+
       '<div class="ship-chart-box">'+weeklyBarChartSVG(p.daily,W,160)+'</div>';
