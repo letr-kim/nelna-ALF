@@ -108,6 +108,7 @@ header.top{display:flex;justify-content:space-between;align-items:flex-end;gap:1
 .edit-mode{margin-top:4px;}
 .edit-mode label{display:block;font-size:12px;color:var(--ink-soft);margin-bottom:10px;}
 .edit-mode label span{display:block;margin-bottom:5px;font-weight:600;}
+.edit-mode input,.edit-mode select{width:100%;border:1px solid var(--line);background:var(--paper);border-radius:8px;padding:8px 10px;font-size:13px;font-family:inherit;color:var(--ink);margin-bottom:0;}
 .edit-mode textarea{width:100%;min-height:54px;border:1px solid var(--line);background:var(--paper);border-radius:8px;padding:8px 10px;font-size:13px;font-family:inherit;color:var(--ink);resize:vertical;}
 .edit-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:4px;}
 .btn-add{background:var(--ink);color:#fff;border:none;border-radius:8px;padding:7px 14px;font-size:13px;font-family:inherit;cursor:pointer;}
@@ -377,6 +378,8 @@ function renderTimeline(){
             '<div class="view-actions"><button class="link-btn edit-btn">수정</button><button class="link-btn delete-btn">삭제</button></div>'+
           '</div>'+
           '<div class="edit-mode" style="display:none">'+
+            '<label><span>날짜 (MM.DD)</span><input class="e-date mono" value="'+esc(e.date)+'"></label>'+
+            '<label><span>변경 유형</span><select class="e-change">'+changeOptions[e.type].map(function(o){return '<option value="'+o+'"'+(o===e.change?' selected':'')+'>'+o+'</option>';}).join('')+'</select></label>'+
             '<label><span>변경 전</span><textarea class="e-before">'+esc(e.before)+'</textarea></label>'+
             '<label><span>변경 후</span><textarea class="e-after">'+esc(e.after)+'</textarea></label>'+
             '<label><span>사유</span><textarea class="e-reason">'+esc(e.reason)+'</textarea></label>'+
@@ -398,11 +401,18 @@ function renderTimeline(){
       finally{setSaving(false);}
     });
     det.querySelector('.save-edit-btn').addEventListener('click',async function(){
+      var date=det.querySelector('.e-date').value.trim();
       var b=det.querySelector('.e-before').value.trim();
       var a=det.querySelector('.e-after').value.trim();
       var r=det.querySelector('.e-reason').value.trim();
       setSaving(true);
-      try{await patchEntry(e.id,{before:b,after:a,reason:r},cfg);var t=log.find(function(x){return x.id===e.id;});if(t)Object.assign(t,{before:b,after:a,reason:r});renderTimeline();}
+      var ch=det.querySelector('.e-change').value;
+      try{
+        await patchEntry(e.id,{date:date,change:ch,before:b,after:a,reason:r},cfg);
+        var t=log.find(function(x){return x.id===e.id;});
+        if(t)Object.assign(t,{date:date,change:ch,before:b,after:a,reason:r});
+        renderTimeline();
+      }
       catch(err){alert('저장 실패: '+err.message);}
       finally{setSaving(false);}
     });
