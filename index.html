@@ -535,7 +535,20 @@ function initShipment(){
     });
     var arr=[];
     map.forEach(function(p){
-      var lots=Array.from(p.lotMap.entries()).map(function(e){return{lot:e[0],qty:e[1],lastDate:p.lotLastDate.get(e[0])||null};}).sort(function(a,b){return b.qty-a.qty;});
+      var lots=Array.from(p.lotMap.entries()).map(function(e){return{lot:e[0],qty:e[1],lastDate:p.lotLastDate.get(e[0])||null};}).sort(function(a,b){
+        // LOT 미기재는 항상 맨 뒤
+        if(a.lot==='LOT 미기재') return 1;
+        if(b.lot==='LOT 미기재') return -1;
+        // 숫자+하이픈 패턴 파싱해서 내림차순 (예: LOT4-1 > LOT4 > LOT3)
+        function parseLot(s){
+          var m=s.match(/(\d+)(?:[\-_](\d+))?/);
+          if(!m) return [0,0];
+          return [parseInt(m[1])||0, parseInt(m[2])||0];
+        }
+        var pa=parseLot(a.lot), pb=parseLot(b.lot);
+        if(pb[0]!==pa[0]) return pb[0]-pa[0];
+        return pb[1]-pa[1];
+      });
       var daily=Array.from(p.dailyMap.entries()).map(function(e){return{date:e[0],qty:e[1]};}).sort(function(a,b){return a.date<b.date?-1:1;});
       var cum=0;daily=daily.map(function(d){cum+=d.qty;return{date:d.date,qty:d.qty,cumQty:cum};});
       // 최근 7일 출고수량
