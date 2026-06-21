@@ -538,9 +538,17 @@ function initShipment(){
       var lots=Array.from(p.lotMap.entries()).map(function(e){return{lot:e[0],qty:e[1],lastDate:p.lotLastDate.get(e[0])||null};}).sort(function(a,b){return b.qty-a.qty;});
       var daily=Array.from(p.dailyMap.entries()).map(function(e){return{date:e[0],qty:e[1]};}).sort(function(a,b){return a.date<b.date?-1:1;});
       var cum=0;daily=daily.map(function(d){cum+=d.qty;return{date:d.date,qty:d.qty,cumQty:cum};});
-      arr.push({name:p.name,skuCode:p.skuCode,totalQty:p.totalQty,totalGiftQty:p.totalGiftQty,first:p.first,last:p.last,lotCount:lots.filter(function(l){return l.lot!=='LOT 미기재';}).length,lots:lots,daily:daily});
+      // 최근 7일 출고수량
+      var today=new Date();
+      var recentQty=0;
+      for(var ri=0;ri<7;ri++){
+        var rd=new Date(today); rd.setDate(today.getDate()-ri);
+        var rk=rd.getFullYear()+'-'+(rd.getMonth()+1).toString().padStart(2,'0')+'-'+rd.getDate().toString().padStart(2,'0');
+        recentQty+=(p.dailyMap.get(rk)||0);
+      }
+      arr.push({name:p.name,skuCode:p.skuCode,totalQty:p.totalQty,totalGiftQty:p.totalGiftQty,first:p.first,last:p.last,lotCount:lots.filter(function(l){return l.lot!=='LOT 미기재';}).length,lots:lots,daily:daily,recentQty:recentQty});
     });
-    return arr.sort(function(a,b){return b.totalQty-a.totalQty;});
+    return arr.sort(function(a,b){return b.recentQty-a.recentQty;});
   }
 
   // ── SVG 차트 ──
@@ -829,17 +837,17 @@ function initShipment(){
     var filtered=products.filter(function(p){
       return !searchQ||p.name.toLowerCase().includes(searchQ.toLowerCase());
     });
-    document.getElementById('shipListMeta').textContent=filtered.length+'개 제품 · 출고수량 많은 순';
+    document.getElementById('shipListMeta').textContent=filtered.length+'개 제품 · 최근 7일 출고 많은 순';
     document.getElementById('shipListScroll').innerHTML=filtered.map(function(p){
       var realIdx=products.indexOf(p);
       var isSel=realIdx===selectedIdx;
+      var recentTxt=p.recentQty>0?('최근 7일 '+fmtNum(p.recentQty)+'개'):'최근 출고 없음';
       return '<div class="ship-item'+(isSel?' sel':'')+'" data-idx="'+realIdx+'">'+
         '<div class="ship-item-name">'+esc(p.name)+'</div>'+
-        '<div class="ship-item-meta">'+fmtNum(p.totalQty)+'개 · LOT '+p.lotCount+'종</div>'+
+        '<div class="ship-item-meta">'+recentTxt+' · LOT '+p.lotCount+'종</div>'+
       '</div>';
     }).join('');
   }
-
   function renderDetail(p){
     if(!p)return '<div class="ship-detail-empty">왼쪽에서 제품을 선택해주세요.</div>';
     var W=480;
@@ -855,12 +863,11 @@ function initShipment(){
       '<div class="ship-section-title">LOT별 출고수량</div>'+
       '<div class="ship-chart-box">'+barChartSVG(lotData,W,18)+'</div>'+
       '<table class="ship-table">'+
-        '<thead><tr><th>LOT</th><th>출고수량</th><th>비중</th><th>마지막 출고일</th></tr></thead>'+
+        '<thead><tr><th>LOT</th><th>출고수량</th><th>마지막 출고일</th></tr></thead>'+
         '<tbody>'+p.lots.map(function(l){
           return '<tr>'+
             '<td>'+esc(l.lot)+'</td>'+
             '<td>'+fmtNum(l.qty)+'개</td>'+
-            '<td style="color:var(--muted)">'+(p.totalQty?((l.qty/p.totalQty)*100).toFixed(1)+'%':'—')+'</td>'+
             '<td style="color:'+(l.lastDate?'var(--ink)':'var(--muted)')+'">'+esc(l.lastDate||'—')+'</td>'+
           '</tr>';
         }).join('')+'</tbody>'+
