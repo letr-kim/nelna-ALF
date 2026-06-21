@@ -473,12 +473,18 @@ function initShipment(){
   var products=[];
   var selectedIdx=0;
   var searchQ='';
+  var savedMeta=null; // {updatedAt, fileName}
 
   // ── 파싱 ──
   var COL={date:["일자"],channel:["판매처"],name:["SKU명"],skuCode:["SKU번호"],lot:["제조LOT"],qty:["출고수량"],giftQty:["사은품출고수량"]};
   function findCol(header,aliases){for(var i=0;i<header.length;i++){var h=(header[i]||'').toString().trim();if(aliases.some(function(a){return h===a;}))return i;}return -1;}
   function normLot(r){if(r==null)return null;var s=r.toString().trim().replace(/\s+/g,'');return s===''?null:s;}
   function fmtNum(n){return Math.round(n).toLocaleString('ko-KR');}
+  function formatDate(iso){
+    if(!iso)return '—';
+    var d=new Date(iso);
+    return d.getFullYear()+'.'+(d.getMonth()+1).toString().padStart(2,'0')+'.'+d.getDate().toString().padStart(2,'0')+' '+d.getHours().toString().padStart(2,'0')+':'+d.getMinutes().toString().padStart(2,'0');
+  }
 
   function parseXLSX(buf){
     if(typeof XLSX==='undefined')return{error:'XLSX 라이브러리를 불러오지 못했어요. 페이지를 새로고침해주세요.'};
@@ -585,40 +591,122 @@ function initShipment(){
     renderDashboard();
   }
 
+  // ── 초기 로드: GitHub에서 저장된 데이터 불러오기 ──
+  async function loadInitial(){
+    wrap.innerHTML='<div class="ship-upload"><div style="color:var(--muted);font-size:13px;display:flex;align-items:center;gap:8px"><div class="spinner"></div>저장된 데이터 확인 중…</div></div>';
+    var result=await loadFromGitHub();
+    if(result&&result.data&&result.data.recs){
+      savedMeta={fileName:result.data.fileName, updatedAt:result.data.updatedAt};
+      records=result.data.recs;
+      products=buildProducts(records);
+      selectedIdx=0; searchQ='';
+      render();
+    } else {
+      render(); // 저장된 데이터 없으면 업로드 화면
+    }
+  }
+
   var uploadError='';
+  var uploadLoading=false;
+
+  // ── GitHub 저장/불러오기 ──
+  var DATA_FILE='shipment-data.json';
+
+  function getGhCfg(){return loadCfg();}
+
+  async function loadFromGitHub(){
+    var c=getGhCfg();
+    if(!c.token||!c.repo)return null;
+    try{
+      var res=await fetch('https://api.github.com/repos/'+c.repo+'/contents/'+DATA_FILE,{
+        headers:{'Authorization':'Bearer '+c.token,'Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'}
+      });
+      if(!res.ok)return null;
+      var json=await res.json();
+      var decoded=JSON.parse(atob(json.content.replace(/\n/g,'')));
+      return {data:decoded, sha:json.sha};
+    }catch(e){return null;}
+  }
+
+  async function saveToGitHub(recs, fileName){
+    var c=getGhCfg();
+    if(!c.token||!c.repo)throw new Error('GitHub 설정이 없어요. 변경 로그 탭에서 먼저 설정해주세요.');
+    var payload={recs:recs, fileName:fileName, updatedAt:new Date().toISOString()};
+    var content=btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
+    // 기존 파일 sha 조회
+    var sha=null;
+    try{
+      var r=await fetch('https://api.github.com/repos/'+c.repo+'/contents/'+DATA_FILE,{
+        headers:{'Authorization':'Bearer '+c.token,'Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'}
+      });
+      if(r.ok){var j=await r.json();sha=j.sha;}
+    }catch(e){}
+    var body={message:'chore: update shipment data ('+fileName+')',content:content};
+    if(sha)body.sha=sha;
+    var res=await fetch('https://api.github.com/repos/'+c.repo+'/contents/'+DATA_FILE,{
+      method:'PUT',
+      headers:{'Authorization':'Bearer '+c.token,'Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28','Content-Type':'application/json'},
+      body:JSON.stringify(body)
+    });
+    if(!res.ok){var t=await res.text();throw new Error('저장 실패: '+t);}
+    return payload;
+  }
+
   function renderUpload(){
+    var metaHtml='';
+    if(savedMeta){
+      var d=new Date(savedMeta.updatedAt);
+      var label=d.getFullYear()+'.'+(d.getMonth()+1).toString().padStart(2,'0')+'.'+d.getDate().toString().padStart(2,'0')+' '+d.getHours().toString().padStart(2,'0')+':'+d.getMinutes().toString().padStart(2,'0');
+      metaHtml='<div style="margin-top:14px;padding:12px 16px;background:var(--teal-soft);border:1px solid var(--teal);border-radius:10px;font-size:13px;color:var(--teal);">'+
+        '✓ 저장된 데이터: <strong>'+esc(savedMeta.fileName)+'</strong><br>'+
+        '<span style="font-size:12px;opacity:0.8">마지막 업데이트: '+label+'</span>'+
+      '</div>';
+    }
     wrap.innerHTML='<div class="ship-upload">'+
-      '<div>'+
-        '<div class="ship-drop" id="shipDrop">'+
-          '<div class="ship-drop-icon">📄</div>'+
-          '<div class="ship-drop-label">클릭해서 업로드 또는 파일을 끌어다 놓으세요</div>'+
+      '<div style="width:100%;max-width:520px">'+
+        '<div class="ship-drop'+(uploadLoading?' ship-drop-loading':'')+'" id="shipDrop">'+
+          '<div class="ship-drop-icon">'+(uploadLoading?'⏳':'📄')+'</div>'+
+          '<div class="ship-drop-label">'+(uploadLoading?'저장 중…':'클릭해서 업로드 또는 파일을 끌어다 놓으세요')+'</div>'+
           '<div class="ship-drop-sub">.xlsx 파일 · 품고 SKU별-일자별 출고 현황</div>'+
           '<input type="file" id="shipFileInput" accept=".xlsx,.xls" style="display:none">'+
         '</div>'+
+        metaHtml+
         (uploadError?'<div class="ship-error">'+esc(uploadError)+'</div>':'')+
       '</div>'+
     '</div>';
 
-    var drop=document.getElementById('shipDrop');
-    var input=document.getElementById('shipFileInput');
-    drop.addEventListener('click',function(){input.click();});
-    drop.addEventListener('dragover',function(e){e.preventDefault();drop.classList.add('over');});
-    drop.addEventListener('dragleave',function(){drop.classList.remove('over');});
-    drop.addEventListener('drop',function(e){e.preventDefault();drop.classList.remove('over');handleFile(e.dataTransfer.files[0]);});
-    input.addEventListener('change',function(e){if(e.target.files[0])handleFile(e.target.files[0]);});
+    if(!uploadLoading){
+      var drop=document.getElementById('shipDrop');
+      var input=document.getElementById('shipFileInput');
+      drop.addEventListener('click',function(){input.click();});
+      drop.addEventListener('dragover',function(e){e.preventDefault();drop.classList.add('over');});
+      drop.addEventListener('dragleave',function(){drop.classList.remove('over');});
+      drop.addEventListener('drop',function(e){e.preventDefault();drop.classList.remove('over');handleFile(e.dataTransfer.files[0]);});
+      input.addEventListener('change',function(e){if(e.target.files[0])handleFile(e.target.files[0]);});
+    }
   }
 
   function handleFile(file){
     if(!file)return;
     var reader=new FileReader();
-    reader.onload=function(e){
+    reader.onload=async function(e){
       var result=parseXLSX(e.target.result);
       if(result.error){uploadError=result.error;render();return;}
-      records=result.recs;
-      products=buildProducts(records);
-      selectedIdx=0;searchQ='';
-      uploadError='';
-      render();
+      // GitHub에 저장
+      uploadLoading=true; uploadError=''; renderUpload();
+      try{
+        var saved=await saveToGitHub(result.recs, file.name);
+        savedMeta={fileName:saved.fileName, updatedAt:saved.updatedAt};
+        records=saved.recs;
+        products=buildProducts(records);
+        selectedIdx=0; searchQ='';
+        uploadLoading=false;
+        render();
+      }catch(err){
+        uploadLoading=false;
+        uploadError=err.message;
+        renderUpload();
+      }
     };
     reader.onerror=function(){uploadError='파일을 읽지 못했어요.';render();};
     reader.readAsArrayBuffer(file);
@@ -635,7 +723,7 @@ function initShipment(){
       var sel=products[selectedIdx]||products[0];
       wrap.innerHTML=
         '<div class="ship-header-row">'+
-          '<div><div style="font-size:11.5px;color:var(--muted);font-weight:600;margin-bottom:3px">품고 출고 데이터</div></div>'+
+          '<div><div style="font-size:11.5px;color:var(--muted);font-weight:600;margin-bottom:3px">품고 출고 데이터</div>'+(savedMeta?'<div style="font-size:12px;color:var(--muted);margin-top:2px">마지막 업데이트: '+formatDate(savedMeta.updatedAt)+'</div>':'')+'</div>'+
           '<button class="btn-reset" id="shipReset">다른 파일 업로드</button>'+
         '</div>'+
         '<div class="ship-stat-row">'+
@@ -653,7 +741,7 @@ function initShipment(){
           '<div class="ship-detail" id="shipDetail">'+renderDetail(sel)+'</div>'+
         '</div>';
 
-      document.getElementById('shipReset').addEventListener('click',function(){records=null;products=[];uploadError='';render();});
+      document.getElementById('shipReset').addEventListener('click',function(){records=null;products=[];uploadError='';uploadLoading=false;render();});
       document.getElementById('shipSearch').addEventListener('input',function(e){
         searchQ=e.target.value;
         renderList();
@@ -718,7 +806,7 @@ function initShipment(){
     return '<div class="ship-stat"><div class="ship-stat-label">'+label+'</div><div class="ship-stat-val" style="font-size:17px">'+val+'</div>'+(sub?'<div class="ship-stat-sub">'+esc(sub)+'</div>':'')+'</div>';
   }
 
-  renderUpload();
+  loadInitial();
 }
 </script>
 </body>
