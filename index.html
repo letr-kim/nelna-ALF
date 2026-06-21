@@ -171,14 +171,14 @@ header.top{display:flex;justify-content:space-between;align-items:flex-end;gap:1
   </div>
 
   <nav class="tab-nav">
-    <button class="tab-btn active" data-tab="changelog">채널톡 운영 변경 로그</button>
-    <button class="tab-btn" data-tab="shipment">출고 현황</button>
+    <button class="tab-btn active" data-tab="shipment">출고 현황</button>
+    <button class="tab-btn" data-tab="changelog">채널톡 운영 변경 로그</button>
     <a class="tab-link" href="https://letr-kim.github.io/nelna-dashboard/output/dashboard.html" target="_blank">상담 인입 분석</a>
     <a class="tab-link" href="https://script.google.com/a/macros/nelna.net/s/AKfycbzLVs9mTtRIobrRDz5Tm1WW51w4z5nLCnDXOsu0eeCp_NiKl4M4N81ocpw21Gfku8RI/exec" target="_blank">택배재발송 CX</a>
   </nav>
 
   <!-- ── 탭 1: 변경 로그 ── -->
-  <div class="tab-pane active" id="tab-changelog">
+  <div class="tab-pane" id="tab-changelog">
     <header class="top">
       <div>
         <div class="sub">워크플로우 · 알프 규칙 · 도큐먼트 변경 기록</div>
@@ -259,7 +259,7 @@ header.top{display:flex;justify-content:space-between;align-items:flex-end;gap:1
   </div>
 
   <!-- ── 탭 2: 출고 현황 ── -->
-  <div class="tab-pane" id="tab-shipment">
+  <div class="tab-pane active" id="tab-shipment">
     <div class="ship-wrap" id="shipWrap"></div>
   </div>
 </div>
@@ -281,6 +281,8 @@ header.top{display:flex;justify-content:space-between;align-items:flex-end;gap:1
       if(btn.dataset.tab==='shipment'&&!shipInited){shipInited=true;initShipment();}
     });
   });
+  // 출고 현황이 기본 탭이므로 바로 초기화
+  shipInited=true; initShipment();
 })();
 
 // ════════════════════════════════════
@@ -628,50 +630,59 @@ function initShipment(){
     var from=dates[0]?dates[0].slice(5):'';
     var to=dates[dates.length-1]?dates[dates.length-1].slice(5):'';
 
+    // 최초 1회만 전체 구조를 그림
+    if(!document.getElementById('shipSearch')){
+      var sel=products[selectedIdx]||products[0];
+      wrap.innerHTML=
+        '<div class="ship-header-row">'+
+          '<div><div style="font-size:11.5px;color:var(--muted);font-weight:600;margin-bottom:3px">품고 출고 데이터</div></div>'+
+          '<button class="btn-reset" id="shipReset">다른 파일 업로드</button>'+
+        '</div>'+
+        '<div class="ship-stat-row">'+
+          '<div class="ship-stat"><div class="ship-stat-label">기간</div><div class="ship-stat-val" style="font-size:15px">'+(from&&to?from+' ~ '+to:'—')+'</div></div>'+
+          '<div class="ship-stat"><div class="ship-stat-label">전체 출고건수</div><div class="ship-stat-val">'+fmtNum(records.length)+'건</div></div>'+
+          '<div class="ship-stat"><div class="ship-stat-label">전체 출고수량</div><div class="ship-stat-val">'+fmtNum(totalQty)+'개</div></div>'+
+          '<div class="ship-stat"><div class="ship-stat-label">제품 수</div><div class="ship-stat-val">'+products.length+'종</div></div>'+
+        '</div>'+
+        '<div class="ship-body">'+
+          '<div class="ship-list">'+
+            '<input class="ship-search" id="shipSearch" placeholder="제품명 검색">'+
+            '<div class="ship-list-meta" id="shipListMeta"></div>'+
+            '<div class="ship-list-scroll" id="shipListScroll"></div>'+
+          '</div>'+
+          '<div class="ship-detail" id="shipDetail">'+renderDetail(sel)+'</div>'+
+        '</div>';
+
+      document.getElementById('shipReset').addEventListener('click',function(){records=null;products=[];uploadError='';render();});
+      document.getElementById('shipSearch').addEventListener('input',function(e){
+        searchQ=e.target.value;
+        renderList();
+      });
+      document.getElementById('shipListScroll').addEventListener('click',function(e){
+        var item=e.target.closest('.ship-item');
+        if(!item)return;
+        selectedIdx=Number(item.dataset.idx);
+        renderList();
+        document.getElementById('shipDetail').innerHTML=renderDetail(products[selectedIdx]);
+      });
+    }
+
+    renderList();
+  }
+
+  function renderList(){
     var filtered=products.filter(function(p){
       return !searchQ||p.name.toLowerCase().includes(searchQ.toLowerCase());
     });
-    var sel=products[selectedIdx]||products[0];
-
-    wrap.innerHTML=
-      '<div class="ship-header-row">'+
-        '<div><div style="font-size:11.5px;color:var(--muted);font-weight:600;margin-bottom:3px">품고 출고 데이터</div></div>'+
-        '<button class="btn-reset" id="shipReset">다른 파일 업로드</button>'+
-      '</div>'+
-      '<div class="ship-stat-row">'+
-        '<div class="ship-stat"><div class="ship-stat-label">기간</div><div class="ship-stat-val" style="font-size:15px">'+(from&&to?from+' ~ '+to:'—')+'</div></div>'+
-        '<div class="ship-stat"><div class="ship-stat-label">전체 출고건수</div><div class="ship-stat-val">'+fmtNum(records.length)+'건</div></div>'+
-        '<div class="ship-stat"><div class="ship-stat-label">전체 출고수량</div><div class="ship-stat-val">'+fmtNum(totalQty)+'개</div></div>'+
-        '<div class="ship-stat"><div class="ship-stat-label">제품 수</div><div class="ship-stat-val">'+products.length+'종</div></div>'+
-      '</div>'+
-      '<div class="ship-body">'+
-        '<div class="ship-list">'+
-          '<input class="ship-search" id="shipSearch" placeholder="제품명 검색" value="'+esc(searchQ)+'">'+
-          '<div class="ship-list-meta">'+filtered.length+'개 제품 · 출고수량 많은 순</div>'+
-          '<div class="ship-list-scroll" id="shipListScroll">'+
-            filtered.map(function(p,i){
-              var realIdx=products.indexOf(p);
-              var isSel=realIdx===selectedIdx;
-              return '<div class="ship-item'+(isSel?' sel':'')+'" data-idx="'+realIdx+'">'+
-                '<div class="ship-item-name">'+esc(p.name)+'</div>'+
-                '<div class="ship-item-meta">'+fmtNum(p.totalQty)+'개 · LOT '+p.lotCount+'종</div>'+
-              '</div>';
-            }).join('')+
-          '</div>'+
-        '</div>'+
-        '<div class="ship-detail" id="shipDetail">'+renderDetail(sel)+'</div>'+
+    document.getElementById('shipListMeta').textContent=filtered.length+'개 제품 · 출고수량 많은 순';
+    document.getElementById('shipListScroll').innerHTML=filtered.map(function(p){
+      var realIdx=products.indexOf(p);
+      var isSel=realIdx===selectedIdx;
+      return '<div class="ship-item'+(isSel?' sel':'')+'" data-idx="'+realIdx+'">'+
+        '<div class="ship-item-name">'+esc(p.name)+'</div>'+
+        '<div class="ship-item-meta">'+fmtNum(p.totalQty)+'개 · LOT '+p.lotCount+'종</div>'+
       '</div>';
-
-    document.getElementById('shipReset').addEventListener('click',function(){records=null;products=[];uploadError='';render();});
-    document.getElementById('shipSearch').addEventListener('input',function(e){searchQ=e.target.value;renderDashboard();});
-    document.getElementById('shipListScroll').addEventListener('click',function(e){
-      var item=e.target.closest('.ship-item');
-      if(!item)return;
-      selectedIdx=Number(item.dataset.idx);
-      document.querySelectorAll('.ship-item').forEach(function(el){el.classList.remove('sel');});
-      item.classList.add('sel');
-      document.getElementById('shipDetail').innerHTML=renderDetail(products[selectedIdx]);
-    });
+    }).join('');
   }
 
   function renderDetail(p){
