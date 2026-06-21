@@ -330,11 +330,13 @@ async function createEntry(e,cfg){
   var issue=await ghFetch('POST','/issues',{title:e.title,body:encodeBody(e),labels:['cx-log','type:'+e.type]},cfg);
   return Object.assign({},e,{id:issue.number});
 }
-async function patchEntry(id,fields,cfg){
+async function patchEntry(id,fields,cfg,newTitle){
   var current=await ghFetch('GET','/issues/'+id,null,cfg);
   var data=decodeBody(current.body);
   Object.assign(data,fields);
-  await ghFetch('PATCH','/issues/'+id,{body:encodeBody(data)},cfg);
+  var patch={body:encodeBody(data)};
+  if(newTitle) patch.title=newTitle;
+  await ghFetch('PATCH','/issues/'+id,patch,cfg);
 }
 async function closeEntry(id,cfg){await ghFetch('PATCH','/issues/'+id,{state:'closed'},cfg);}
 
@@ -379,6 +381,7 @@ function renderTimeline(){
           '</div>'+
           '<div class="edit-mode" style="display:none">'+
             '<label><span>날짜 (MM.DD)</span><input class="e-date mono" value="'+esc(e.date)+'"></label>'+
+            '<label><span>제목</span><input class="e-title" value="'+esc(e.title)+'"></label>'+
             '<label><span>변경 유형</span><select class="e-change">'+changeOptions[e.type].map(function(o){return '<option value="'+o+'"'+(o===e.change?' selected':'')+'>'+o+'</option>';}).join('')+'</select></label>'+
             '<label><span>변경 전</span><textarea class="e-before">'+esc(e.before)+'</textarea></label>'+
             '<label><span>변경 후</span><textarea class="e-after">'+esc(e.after)+'</textarea></label>'+
@@ -407,10 +410,11 @@ function renderTimeline(){
       var r=det.querySelector('.e-reason').value.trim();
       setSaving(true);
       var ch=det.querySelector('.e-change').value;
+      var ti=det.querySelector('.e-title').value.trim();
       try{
-        await patchEntry(e.id,{date:date,change:ch,before:b,after:a,reason:r},cfg);
+        await patchEntry(e.id,{date:date,change:ch,before:b,after:a,reason:r},cfg,ti);
         var t=log.find(function(x){return x.id===e.id;});
-        if(t)Object.assign(t,{date:date,change:ch,before:b,after:a,reason:r});
+        if(t)Object.assign(t,{date:date,change:ch,before:b,after:a,reason:r,title:ti});
         renderTimeline();
       }
       catch(err){alert('저장 실패: '+err.message);}
