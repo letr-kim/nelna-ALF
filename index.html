@@ -924,13 +924,14 @@ function initShipment(){
       btn.onclick=function(){
         var row=btn.closest('tr');
         var lot=row.dataset.lot;
-        openDefectModal(lot, row);
+        var defKey=row.dataset.defkey;
+        openDefectModal(lot, defKey, row);
       };
     });
   }
 
-  function openDefectModal(lot, row){
-    var def=defects[lot]||{};
+  function openDefectModal(lot, defKey, row){
+    var def=defects[defKey]||{};
     // 기존 모달 제거
     var existing=document.getElementById('defectModal');
     if(existing) existing.remove();
@@ -969,7 +970,7 @@ function initShipment(){
         var status=document.getElementById('defectSaveStatus');
         status.textContent='삭제 중…';
         try{
-          delete defects[lot];
+          delete defects[defKey];
           await saveDefects();
           modal.remove();
           document.getElementById('shipDetail').innerHTML=renderDetail(products[selectedIdx]);
@@ -984,7 +985,7 @@ function initShipment(){
       var status=document.getElementById('defectSaveStatus');
       status.style.color='var(--muted)'; status.textContent='저장 중…';
       try{
-        defects[lot]={rate:rate, note:note};
+        defects[defKey]={rate:rate, note:note};
         await saveDefects();
         modal.remove();
         document.getElementById('shipDetail').innerHTML=renderDetail(products[selectedIdx]);
@@ -1025,8 +1026,9 @@ function initShipment(){
       '<table class="ship-table">'+
         '<thead><tr><th>LOT</th><th>출고수량</th><th>마지막 출고일</th><th>불량률</th><th>불량 내용</th><th></th></tr></thead>'+
         '<tbody>'+p.lots.map(function(l){
-          var def=defects[l.lot]||{};
-          return '<tr data-lot="'+esc(l.lot)+'">'+
+          var defKey=p.name+'::'+l.lot;
+          var def=defects[defKey]||{};
+          return '<tr data-lot="'+esc(l.lot)+'" data-defkey="'+esc(defKey)+'">'+
             '<td>'+esc(l.lot)+'</td>'+
             '<td>'+fmtNum(l.qty)+'개</td>'+
             '<td style="color:'+(l.lastDate?'var(--ink)':'var(--muted)')+'">'+esc(l.lastDate||'—')+'</td>'+
