@@ -198,9 +198,9 @@ header.top{display:flex;justify-content:space-between;align-items:flex-end;gap:1
     <div class="setup-banner" id="setupBanner">
       <div class="icon">🔗</div>
       <div>
-        <strong>GitHub 연동이 필요해요</strong>
-        팀 공유를 위해 GitHub 레포지토리를 연결해 주세요.
-        <a id="bannerSettingsLink">설정 열기</a> → GitHub Token + 레포 이름 입력 → 완료!
+        <strong>새 기록 추가/수정하려면 GitHub 토큰이 필요해요</strong>
+        읽기는 누구나 가능해요. 기록을 추가·수정하려면
+        <a id="bannerSettingsLink">설정 열기</a> → GitHub Token 입력 → 완료!
       </div>
     </div>
 
@@ -323,6 +323,15 @@ async function ensureLabels(cfg){
   for(var i=0;i<labels.length;i++){if(!names.has(labels[i].name))await ghFetch('POST','/labels',labels[i],cfg).catch(function(){});}
 }
 async function fetchEntries(cfg){
+  // 토큰 없으면 public API로 직접 fetch
+  if(!cfg.token){
+    var res=await fetch('https://api.github.com/repos/'+cfg.repo+'/issues?labels=cx-log&state=open&per_page=100&sort=created&direction=desc',{
+      headers:{'Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'}
+    });
+    if(!res.ok) throw new Error('GitHub API '+res.status);
+    var issues=await res.json();
+    return issues.map(issueToEntry);
+  }
   var issues=await ghFetch('GET','/issues?labels=cx-log&state=open&per_page=100&sort=created&direction=desc',null,cfg);
   return issues.map(issueToEntry);
 }
@@ -476,7 +485,15 @@ addForm.addEventListener('submit',async function(ev){
 
 async function init(){
   tlWrap.innerHTML='<div class="loading-overlay"><div class="spinner"></div>불러오는 중…</div>';
-  if(!cfg.token||!cfg.repo){document.getElementById('setupBanner').classList.remove('hidden');renderTimeline();return;}
+  // 레포 기본값
+  if(!cfg.repo) cfg.repo='letr-kim/nelna-ALF';
+  if(!cfg.token){
+    // 토큰 없으면 읽기만 (배너 표시하되 기록은 불러옴)
+    document.getElementById('setupBanner').classList.remove('hidden');
+    try{log=await fetchEntries(cfg);renderTimeline();}
+    catch(err){tlWrap.innerHTML='<div class="error-state">⚠ '+esc(err.message)+'</div><div class="empty-state">설정을 확인한 뒤 새로고침 해주세요.</div>';}
+    return;
+  }
   document.getElementById('setupBanner').classList.add('hidden');
   try{await ensureLabels(cfg);log=await fetchEntries(cfg);renderTimeline();}
   catch(err){tlWrap.innerHTML='<div class="error-state">⚠ '+esc(err.message)+'</div><div class="empty-state">설정을 확인한 뒤 새로고침 해주세요.</div>';}
