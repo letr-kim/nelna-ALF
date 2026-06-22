@@ -673,8 +673,8 @@ function initShipment(){
   // ── 초기 로드: GitHub에서 저장된 데이터 불러오기 ──
   async function loadInitial(){
     var c=loadCfg();
-    if(!c.token||!c.repo){
-      // GitHub 설정 없으면 바로 업로드 화면
+    if(!c.repo){
+      // 레포 설정 없으면 바로 업로드 화면
       render(); return;
     }
     wrap.innerHTML='<div class="ship-upload"><div style="color:var(--muted);font-size:13px;display:flex;align-items:center;gap:8px"><div class="spinner"></div>저장된 데이터 확인 중…</div></div>';
@@ -707,11 +707,11 @@ function initShipment(){
 
   async function loadDefects(){
     var c=loadCfg();
-    if(!c.token||!c.repo) return;
+    if(!c.repo) c.repo='letr-kim/nelna-ALF';
     try{
-      var res=await fetch('https://api.github.com/repos/'+c.repo+'/contents/'+DEFECT_FILE,{
-        headers:{'Authorization':'Bearer '+c.token,'Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'}
-      });
+      var headers={'Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'};
+      if(c.token) headers['Authorization']='Bearer '+c.token;
+      var res=await fetch('https://api.github.com/repos/'+c.repo+'/contents/'+DEFECT_FILE,{headers:headers});
       if(!res.ok) return;
       var meta=await res.json();
       var text;
@@ -753,15 +753,15 @@ function initShipment(){
     if(!res.ok){var t=await res.text();throw new Error(t);}
   }
 
-  function getGhCfg(){return loadCfg();}
+  function getGhCfg(){var c=loadCfg();if(!c.repo)c.repo='letr-kim/nelna-ALF';return c;}
 
   async function loadFromGitHub(){
     var c=getGhCfg();
-    if(!c.token||!c.repo)return null;
+    if(!c.repo) return null;
     try{
-      var res=await fetch('https://api.github.com/repos/'+c.repo+'/contents/'+DATA_FILE,{
-        headers:{'Authorization':'Bearer '+c.token,'Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'}
-      });
+      var headers={'Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'};
+      if(c.token) headers['Authorization']='Bearer '+c.token;
+      var res=await fetch('https://api.github.com/repos/'+c.repo+'/contents/'+DATA_FILE,{headers:headers});
       if(!res.ok)return null;
       var meta=await res.json();
       var sha=meta.sha;
