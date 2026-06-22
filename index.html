@@ -673,10 +673,7 @@ function initShipment(){
   // ── 초기 로드: GitHub에서 저장된 데이터 불러오기 ──
   async function loadInitial(){
     var c=loadCfg();
-    if(!c.repo){
-      // 레포 설정 없으면 바로 업로드 화면
-      render(); return;
-    }
+    if(!c.repo) c.repo='letr-kim/nelna-ALF';
     wrap.innerHTML='<div class="ship-upload"><div style="color:var(--muted);font-size:13px;display:flex;align-items:center;gap:8px"><div class="spinner"></div>저장된 데이터 확인 중…</div></div>';
     try{
       var result=await loadFromGitHub();
